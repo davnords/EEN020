@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from pflat import pflat
 from camera_center_and_axis import camera_center_and_axis
 
 def plot_camera(P, s, ax=None):
@@ -9,6 +8,8 @@ def plot_camera(P, s, ax=None):
         raise ValueError('Input must be a 3x4 matrix')
 
     C, a = camera_center_and_axis(P)
+    print('Camera center: ', C)
+    print('Principal axis: ', a)
     a = s*a
 
     if ax==None:

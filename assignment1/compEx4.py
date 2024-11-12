@@ -4,9 +4,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 from camera_center_and_axis import  camera_center_and_axis
 from math import *
-from pflat import pflat
 import cv2
 from imwarp import imwarp
+from pflat import pflat
 
 if __name__ == "__main__":
     img = Image.open('A1data/compEx4.jpg')

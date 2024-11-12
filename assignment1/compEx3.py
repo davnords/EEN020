@@ -11,7 +11,7 @@ if __name__=="__main__":
     im2 = Image.open('A1data/compEx3im2.jpg')
 
     mat = loadmat('A1data/compEx3.mat')
-        
+
     U = mat['U']
     U = pflat(U)
 
