@@ -10,7 +10,11 @@ def camera_center_and_axis(p):
     C = C[:-1] / C[-1]
 
     Q = p[:3, :3]
+    
+    axis = Q[:, 0:3].T @ np.array([0, 0, 1])
 
-    axis = Q[:, 2] / np.linalg.norm(Q[:, 2])
+    axis = axis / np.linalg.norm(axis)
+
+    assert np.abs(np.linalg.norm(axis)-1)<1e-4, 'Principal axis is not unit vector' 
 
     return C, axis

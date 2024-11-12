@@ -25,5 +25,6 @@ def rital(linjer, st='-'):
     x_coords = [punkter[0, 0] - 2000 * rikt[0, 0], punkter[0, 0] + 2000 * rikt[0, 0]]
     y_coords = [punkter[1, 0] - 2000 * rikt[1, 0], punkter[1, 0] + 2000 * rikt[1, 0]]
     plt.plot(x_coords, y_coords, st)
+
   
   

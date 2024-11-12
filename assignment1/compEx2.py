@@ -17,6 +17,14 @@ if __name__ == "__main__":
     p2 = mat['p2']
     p3 = mat['p3']
 
+    plt.plot(p1[0], p1[1], 'ro')
+    plt.plot(p2[0], p2[1], 'ro')
+    plt.plot(p3[0], p3[1], 'ro')
+    plt.imshow(img.convert("RGB"))
+    plt.savefig('plots/compEx2_plot1.png')
+    plt.show()
+    plt.close()
+
     rital(p1)
     rital(p2)
     rital(p3)
@@ -31,6 +39,6 @@ if __name__ == "__main__":
     print('Distance between random point and line 1:', d_random)
 
     plt.imshow(img.convert("RGB"))
-    plt.savefig('plots/compEx2_plot1.png')
+    plt.savefig('plots/compEx2_plot2.png')
     plt.show()
     

@@ -11,15 +11,12 @@ if __name__=="__main__":
     im2 = Image.open('A1data/compEx3im2.jpg')
 
     mat = loadmat('A1data/compEx3.mat')
-    
+        
     U = mat['U']
     U = pflat(U)
 
     P1 = mat['P1']
     P2 = mat['P2']
-
-    UP1 = pflat(np.dot(P1, U))
-    UP2 = pflat(np.dot(P2, U))
 
     fig = plt.figure()
     ax = plt.axes(projection='3d')
@@ -37,6 +34,8 @@ if __name__=="__main__":
     plt.savefig('plots/compEx3_plot1.png')
     plt.show()
 
+    UP1 = pflat(np.dot(P1, U))
+    UP2 = pflat(np.dot(P2, U))
     # create subplots for the images
     fig, axs = plt.subplots(1, 2)
     axs[0].set_title('Image 1')
