@@ -1,6 +1,6 @@
 import numpy as np
 
-def estimate_camera_DLT(x, X):
+def estimate_camera_DLT(x, X, printSV=False):
     """Estimate the camera matrix using the DLT algorithm.
     Arguments:
     x -- 2D points in the image (3xN)
@@ -18,7 +18,15 @@ def estimate_camera_DLT(x, X):
         M[2*i+1, 4:8] = X[:, i]
         M[2*i+1, 8:12] = -x[1, i]*X[:, i]
     _, S, Vt = np.linalg.svd(M)
-    print(f"The smallest singular value is: {S[-1]:.4f}")
-    print(f"The value of ||Mv|| is: {np.linalg.norm(np.dot(M, Vt[-1])):.4f}")
+    if printSV:
+        print(f"The smallest singular value is: {S[-1]:.4f}")
+        print(f"The value of ||Mv|| is: {np.linalg.norm(np.dot(M, Vt[-1])):.4f}")
     P = Vt[-1].reshape(3, 4)
+
+    x_projected = P @ X  # Project points
+    depths = x_projected[2, :]
+    if np.any(depths <= 0):
+        # print("Warning: Some points are behind the camera, negating the camera matrix.")
+        P = -P  # Negate the camera matrix to flip the camera direction
+
     return P
