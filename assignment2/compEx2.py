@@ -52,7 +52,7 @@ if __name__ == "__main__":
     startind = mat['startind']
     endind = mat['endind']
 
-    include_normalization = True
+    include_normalization = False
 
     images = [Image.open('A2data/data/cube1.JPG'), Image.open('A2data/data/cube2.JPG')]
     
@@ -106,7 +106,7 @@ if __name__ == "__main__":
         ax[i].imshow(images[i].convert("RGB"))
         ax[i].scatter(Xi[0], Xi[1], label='Projected 3D points', color='blue')
     plt.savefig('plots/compEx2_plot2.png')
-    # plt.show()
+    plt.show()
     plt.close()
 
     # Plot 3
@@ -185,4 +185,14 @@ if __name__ == "__main__":
             print(f"The root mean square error {'with' if normalization_option else 'without'} normalization and {'with' if points_option else 'without'} only selected points is: {e_rms_value:.4f}")
 
 
+'''
+    Questions for Kunal:
+    - Do I need to normalize Xmodel?
+        - No
+    - Why is my normalization not giving improved results?
+        - It does not have to be (optional part seems to give correct results)
+    - Why is the element in the middle of the top row of the calibration matrix not 0?
+        - It is not necessary for it to be 0 (looks OK)
+'''
 
+    

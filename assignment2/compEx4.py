@@ -14,6 +14,7 @@ if __name__ == "__main__":
     (P1, P2) = np.load('variables/compEx2_P_matrices.npy')
     (K1, K2) = np.load('variables/compEx2_K_matrices.npy')
     (img1, img2) = [Image.open('A2data/data/cube1.JPG'), Image.open('A2data/data/cube2.JPG')]
+    images = [img1, img2]
     
     assert x1.shape[0] == x2.shape[0], "Number of points in x1 and x2 do not match"
     assert x1.shape[-1] == 2, "x1 does not have 2 coordinates"
@@ -40,6 +41,24 @@ if __name__ == "__main__":
     x1_proj = pflat( P1 @ X )
     x2_proj = pflat( P2 @ X )
 
+    height1, width1 = img1.size[1], img1.size[0]  # Dimensions of the first image
+    height2, width2 = img2.size[1], img2.size[0]  # Dimensions of the second image
+
+    # Removing points outside the image bounds
+    x1_proj = pflat(P1 @ X)
+    x2_proj = pflat(P2 @ X)
+
+    # Get indices of points within bounds for both projections
+    in_bounds_x1 = (0 <= x1_proj[0]) & (x1_proj[0] < width1) & (0 <= x1_proj[1]) & (x1_proj[1] < height1)
+    in_bounds_x2 = (0 <= x2_proj[0]) & (x2_proj[0] < width2) & (0 <= x2_proj[1]) & (x2_proj[1] < height2)
+
+    # Find points that are within bounds in both projections
+    valid_indices = in_bounds_x1 & in_bounds_x2
+
+    # Filter points based on the valid indices
+    x1_proj = x1_proj[:, valid_indices]
+    x2_proj = x2_proj[:, valid_indices]
+
     fig, ax = plt.subplots(1, 2, figsize=(12, 6))  # 1 row, 2 columns
     for i in range(2):
         if i == 0:
@@ -47,7 +66,7 @@ if __name__ == "__main__":
         else:
             xi, xi_proj = x2, x2_proj
         ax[i].set_title('Camera '+str(i+1))
-        ax[i].imshow(img1.convert("RGB"))
+        ax[i].imshow(images[i].convert("RGB"))
         ax[i].plot(xi_proj[0], xi_proj[1], 'ro', alpha=0.3, markersize=0.5, label='Projected triangulated 3D points')
         ax[i].plot(xi[:, 0], xi[:, 1], 'bo', alpha=0.3, markersize=0.5, label='SIFT 2D keypoints')
         ax[i].legend(loc='upper right', fontsize=10, markerscale=10)
@@ -70,8 +89,8 @@ if __name__ == "__main__":
         Xi, svi = triangulate_3D_point_DLT(x1_normalized[:2, i].T, x2_normalized[:2, i].T, P1_normalized, P2_normalized)
         X.append(Xi)
         sv.append(svi)
+    
     print('Mean singular value for normalized optimization: ', np.mean(sv))
-
     X = np.vstack((np.array(X).T, np.ones(n)))
 
     P_matrices = np.array([P1, P2])
@@ -105,12 +124,14 @@ if __name__ == "__main__":
 
     print(f"Share of points with pixel error less than {error_threshold} pixels: {(len(indices)/n)*100:.2f}%")
 
+    X = X[:, indices]
+
     from plotcams import plotcams
     # Plot 3
     fig = plt.figure()
     ax = plt.axes(projection='3d')
     ax.plot3D(X[0], X[1], X[2], 'bo', alpha=0.5, markersize=0.4, label='Triangulated 3D points')
-    ax.plot3D(Xmodel[0], Xmodel[1], Xmodel[2], 'go', alpha=0.3, markersize=0.4, label='Real 3D points')
+    ax.plot3D(Xmodel[0], Xmodel[1], Xmodel[2], 'ro', alpha=0.9, markersize=0.4, label='Real 3D points')
     ax.legend(loc='upper right', fontsize=10, markerscale=10)
     plotcams(P_matrices, ax=ax, scale=10)
     plt.title('3D points')
