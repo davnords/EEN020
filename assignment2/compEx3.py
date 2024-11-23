@@ -30,7 +30,7 @@ if __name__=="__main__":
     np.save('variables/x1_compEx3.npy', x1)
     np.save('variables/x2_compEx3.npy', x2)
 
-    matches = random.sample(matches, 100)
+    matches = random.sample(matches, 10)
 
     im1 = cv2.imread('A2data/data/cube1.JPG') 
     im2 = cv2.imread('A2data/data/cube2.JPG') 

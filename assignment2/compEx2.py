@@ -25,6 +25,9 @@ def normalize_coordinates(coords, normalize=True):
     # Compute mean and standard deviation
     x_mean, y_mean = np.mean(x_coords), np.mean(y_coords)
     x_std, y_std = np.std(x_coords), np.std(y_coords)
+
+    print(f"Mean of x: {x_mean:.4f}, Mean of y: {y_mean:.4f}")
+    print(f"Standard deviation of x: {x_std:.4f}, Standard deviation of y: {y_std:.4f}")
     
     # Construct the normalization matrix N
     if normalize:
@@ -183,16 +186,3 @@ if __name__ == "__main__":
 
             e_rms_value = e_rms(coords[:2], x_proj[:2])
             print(f"The root mean square error {'with' if normalization_option else 'without'} normalization and {'with' if points_option else 'without'} only selected points is: {e_rms_value:.4f}")
-
-
-'''
-    Questions for Kunal:
-    - Do I need to normalize Xmodel?
-        - No
-    - Why is my normalization not giving improved results?
-        - It does not have to be (optional part seems to give correct results)
-    - Why is the element in the middle of the top row of the calibration matrix not 0?
-        - It is not necessary for it to be 0 (looks OK)
-'''
-
-    

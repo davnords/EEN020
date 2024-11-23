@@ -44,7 +44,7 @@ if __name__ == "__main__":
     x0_proj = pflat(P0 @ X0)
 
     # Plot 2
-    project_and_plot(P0, X0, im0, 'plots/compEx1_plot2.png', title='3D projection into camera 0', show=False)    
+    project_and_plot(P0, X0, im0, 'plots/compEx1_plot2.png', title='3D projection into camera 0', show=True, other_points=[find_non_nan_points(x0, x0)])    
 
     # ---------------------------------------------------------------------------------------------
 
