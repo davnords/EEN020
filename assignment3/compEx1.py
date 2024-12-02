@@ -86,12 +86,13 @@ if __name__ == "__main__":
     F = estimate_F_DLT(x[0], x[1])
     enforce_fundamental(F)
 
-    epipolar_constraint = x[0].T@F@x[1]
-    assert np.allclose(epipolar_constraint, np.zeros_like(epipolar_constraint), atol=5e1), f'Epipolar constraint not fulfilled! Max deviation: {np.max(np.abs(epipolar_constraint))}'   
+    epipolar_constraint = x[0].T@F@x[1].diagonal()
+    assert np.allclose(epipolar_constraint, np.zeros_like(epipolar_constraint), atol=2e1), f'Epipolar constraint not fulfilled! Max deviation: {np.max(np.abs(epipolar_constraint))}'   
     errors = compute_epipolar_errors(F, x[0], x[1])
 
     print('Fundamental matrix F for the original (un-normalized) points', F/F[-1, -1])
 
+    plt.close()
     plt.figure()
     plt.title('Histogram of distances to epipolar lines (non-normalized case)')
     errors = compute_epipolar_errors(F, x[0], x[1])

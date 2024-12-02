@@ -20,20 +20,20 @@ if __name__ == "__main__":
     K = mat['K']
     K_inv = np.linalg.inv(K)
 
-    x = np.array([K_inv@x[0], K_inv@x[1]])
-    F = estimate_F_DLT(x[0], x[1])
-    enforce_fundamental(F)
-    E = K.T@F@K
+    x = np.array([pflat(K_inv@x[0]), pflat(K_inv@x[1])])
+
+    E = estimate_F_DLT(x[0], x[1])
+    enforce_fundamental(E)
+    
     U, S, Vt = np.linalg.svd(E)
     E = U@np.diag([1,1,0])@Vt
 
     np.save('variables/E.npy', E)
 
-    epipolar_constraint = x[1].T@E@x[0]
-    assert np.allclose(epipolar_constraint, np.zeros_like(epipolar_constraint), atol=5e-1), f'Epipolar constraint not fulfilled! Max deviation: {np.max(np.abs(epipolar_constraint))}'
+    epipolar_constraint = x[1].T@E@x[0].diagonal()
+    assert np.allclose(epipolar_constraint, np.zeros_like(epipolar_constraint), atol=3.5e-1), f'Epipolar constraint not fulfilled! Max deviation: {np.max(np.abs(epipolar_constraint))}'
 
-    F = convert_E_to_F(E, K, K)
-    F_unnormalized = K.T @ F @ K
+    F_unnormalized = convert_E_to_F(E, K, K)
     
     indices = np.random.choice(x_unnormalized[0].shape[-1], size=20, replace=False)
     sampled_points = pflat(x_unnormalized[1][:, indices])
@@ -66,9 +66,9 @@ if __name__ == "__main__":
 
     plt.figure()
     plt.title('Histogram of distances to epipolar lines')
-    errors = compute_epipolar_errors(F, x[0], x[1])
+    errors = compute_epipolar_errors(F_unnormalized, x_unnormalized[0], x_unnormalized[1])
     print('Mean distance to epipolar lines: ', np.mean(errors))
-    plt.savefig('./plots/compEx1_plot2.png')
+    plt.savefig('./plots/compEx2_plot2.png')
     plt.show()
     plt.close()
     
