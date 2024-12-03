@@ -30,6 +30,7 @@ if __name__ == "__main__":
 
     P2_best = None
     X_best = None
+    camera_counter= 0
     for P2 in P2s:
         Xj = []
         positive_depth_count = 0
@@ -46,6 +47,8 @@ if __name__ == "__main__":
         if positive_depth_count == N:
             X_best = Xj
             P2_best = P2
+            print('Best camera is: ', camera_counter)
+        camera_counter = camera_counter + 1
 
     if P2_best is None or X_best is None:
         raise ValueError('No valid P2 found')
@@ -64,7 +67,7 @@ if __name__ == "__main__":
     x1_proj = pflat(P1@X)
 
     plt.figure()
-    plt.title('[...]')
+    plt.title('Comparing original and reprojected 3D points')
     plt.plot(x_unnormalized[0, 0, :], x_unnormalized[0, 1, :], 'ro', alpha=0.3, markersize=1, label='Original points')
     plt.plot(x1_proj[0, :], x1_proj[1, :], 'bo', alpha=0.3, markersize=1, label='Reprojected 3D points')
     plt.legend(loc='upper right', fontsize=10, markerscale=10)
@@ -78,7 +81,7 @@ if __name__ == "__main__":
     ax.plot(X[0], X[1], X[2], 'bo', alpha=0.2, markersize=0.5)
     plotcams([P1, P2], ax=ax, scale=3)
     plt.axis('equal')
-    plt.title('[...]')
+    plt.title('3D points and cameras')
     plt.savefig('plots/compEx3_plot2.png')
     plt.show()
     plt.close()

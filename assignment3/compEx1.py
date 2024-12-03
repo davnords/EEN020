@@ -29,6 +29,7 @@ if __name__ == "__main__":
     
     F = estimate_F_DLT(x_normalized[0], x_normalized[1])
     F = N2.T@F@N1
+    print('Fundamental matrix F for the normalized points', F/F[-1, -1])
     enforce_fundamental(F)
 
     assert np.allclose(np.mean(x_normalized[0], axis=0), 0, atol=3), "Mean of normalized x is not zero"

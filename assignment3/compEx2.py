@@ -27,12 +27,15 @@ if __name__ == "__main__":
     
     U, S, Vt = np.linalg.svd(E)
     E = U@np.diag([1,1,0])@Vt
+    enforce_essential(E)
 
     np.save('variables/E.npy', E)
 
     epipolar_constraint = x[1].T@E@x[0].diagonal()
     assert np.allclose(epipolar_constraint, np.zeros_like(epipolar_constraint), atol=3.5e-1), f'Epipolar constraint not fulfilled! Max deviation: {np.max(np.abs(epipolar_constraint))}'
 
+    print('Essential matrix E: ', E/E[-1, -1])
+    
     F_unnormalized = convert_E_to_F(E, K, K)
     
     indices = np.random.choice(x_unnormalized[0].shape[-1], size=20, replace=False)
