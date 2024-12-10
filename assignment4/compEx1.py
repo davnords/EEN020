@@ -94,7 +94,7 @@ if __name__ == "__main__":
     from estimate_E_robust import estimate_E_robust
     inlier_threshold_px = 2
     eps = inlier_threshold_px * 2 / ( K[0,0] + K[1 ,1])
-    E, inliers = estimate_E_robust(x_normalized[0], x_normalized[1], eps, iterations=1)
+    E, inliers = estimate_E_robust(x_normalized[0], x_normalized[1], eps, iterations=100)
     
     F = convert_E_to_F(E, K, K)
     enforce_fundamental(F)
