@@ -60,10 +60,7 @@ def perform_bundle_adjustment(X, x, P, epochs=5):
             x1j = x[0, :, i]
             x2j = x[1, :, i]
 
-            # Compute reprojection error and Jacobian
             r, J = linearize_reproj_err(P[0], P[1], X[:, i], x1j, x2j)
-            
-            # Compute initial error for current point
             current_error = np.linalg.norm(r)**2
 
             # Compute update for X[:, i]
@@ -86,7 +83,6 @@ def perform_bundle_adjustment(X, x, P, epochs=5):
 
             total_error += new_error
 
-        # Optionally, log or print the total error for monitoring
         print(f"Epoch {epoch + 1}/{epochs}, Total Error: {total_error:.6f}, Damping Factor: {mu:.6e}")
 
     return X
