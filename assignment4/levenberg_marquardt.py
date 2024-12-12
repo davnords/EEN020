@@ -51,12 +51,42 @@ def compute_update(r, J, mu):
 def perform_bundle_adjustment(X, x, P, epochs=5):
     X = X.copy()
     N = X.shape[-1]
-    for _ in tqdm(range(epochs), desc='Performing bundle adjustment'):
+    mu = 0.1  # Initial damping factor
+
+    for epoch in tqdm(range(epochs), desc='Performing bundle adjustment'):
+        total_error = 0
+
         for i in range(N):
             x1j = x[0, :, i]
             x2j = x[1, :, i]
 
+            # Compute reprojection error and Jacobian
             r, J = linearize_reproj_err(P[0], P[1], X[:, i], x1j, x2j)
-            delta_Xj = compute_update(r, J, 1)
-            X[:, i] += delta_Xj
+            
+            # Compute initial error for current point
+            current_error = np.linalg.norm(r)**2
+
+            # Compute update for X[:, i]
+            delta_Xj = compute_update(r, J, mu)
+
+            # Temporarily update the solution
+            X_temp = X[:, i] + delta_Xj
+
+            # Recompute error after applying the update
+            r_new, _ = linearize_reproj_err(P[0], P[1], X_temp, x1j, x2j)
+            new_error = np.linalg.norm(r_new)**2
+
+            if new_error < current_error:
+                # Accept the update and reduce the damping factor
+                X[:, i] = X_temp
+                mu = max(mu / 10, 1e-7)  # Ensure mu doesn't become too small
+            else:
+                # Reject the update and increase the damping factor
+                mu = min(mu * 10, 1e7)  # Ensure mu doesn't become too large
+
+            total_error += new_error
+
+        # Optionally, log or print the total error for monitoring
+        print(f"Epoch {epoch + 1}/{epochs}, Total Error: {total_error:.6f}, Damping Factor: {mu:.6e}")
+
     return X
