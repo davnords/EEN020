@@ -26,7 +26,6 @@ def estimate_F_DLT(x1s, x2s):
     
     # Perform SVD on M
     _, S, Vt = np.linalg.svd(M)
-    print('Smallest singular value: ', S[-1])
     F = Vt[-1].reshape(3, 3)  # Extract the last row of Vt and reshape to 3x3
     
     # Enforce rank-2 constraint on F by setting the smallest singular value to zero

@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
             plt.grid(True)
             plt.tight_layout()
-            plt.savefig(f"plots/compEx3_3D_comparison_X{X_idx}_x{x_idx}.png")
+            plt.savefig(f"plots/compEx4_3D_comparison_X{X_idx}_x{x_idx}.png")
             plt.show()
 
     # Print results table

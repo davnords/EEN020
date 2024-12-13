@@ -59,7 +59,7 @@ if __name__ == "__main__":
     # Finding the essential matrix
     inlier_threshold_px = 2
     eps = inlier_threshold_px * 2 / ( K[0,0] + K[1 ,1])
-    E, _ = estimate_E_robust(x1_normalized, x2_normalized, eps, iterations=1000)
+    E, _ = estimate_E_robust(x1_normalized, x2_normalized, eps, iterations=10000)
 
     P1 = np.hstack((np.eye(3), np.zeros((3,1))))
     P2s = extract_P_from_E(E)
@@ -81,14 +81,26 @@ if __name__ == "__main__":
 
         print(f"Camera {camera_counter} has {positive_depth_count/N*100:.2f}% points in front of both cameras")
         Xj = np.array(Xj)
+
+        # Compute distances from the origin
+        distances = np.linalg.norm(Xj, axis=1)
+
+        # Find the 90th percentile distance
+        threshold = np.percentile(distances, 90)
+
+        # Filter out points beyond the threshold
+        Xj_filtered = Xj[distances <= threshold]
+
+        # Plot the filtered points
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-        ax.plot(Xj[:, 0], Xj[:, 1], Xj[:, 2], 'bo', alpha=0.2, markersize=0.5)
+        ax.plot(Xj_filtered[:, 0], Xj_filtered[:, 1], Xj_filtered[:, 2], 'bo', alpha=0.2, markersize=0.5)
         plotcams([P1, P2], ax=ax, scale=0.1)
         plt.axis('equal')
-        plt.title(f"Camera {camera_counter} 3D points and cameras")
-        plt.savefig(f"plots/compEx2_plot{2+camera_counter}.png")
+        plt.title(f"Camera {camera_counter} 3D points (filtered) and cameras")
+        plt.savefig(f"plots/compEx2_plot{2+camera_counter}_filtered.png")
         plt.show()
         plt.close()
 
         camera_counter += 1
+
