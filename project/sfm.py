@@ -44,22 +44,10 @@ def sfm(dataset):
 
         # Step 2: Compute the Essential Matrix
         eps = pixel_threshold * 2 / ( K[0,0] + K[1 ,1])
-        E, mask = cv.findEssentialMat(x1u[:2], x2u[:2], K, method=cv.RANSAC, threshold=eps)
 
         # Find the essential matrix
         E, inliers = estimate_E_robust.estimate_E_robust(x1n, x2n, eps, iterations=10)
         
-        good_matches = np.array(good_matches)
-        indices = np.random.choice(len(good_matches), size=10, replace=False)
-        M, mask = cv.findHomography(x1u[:2].reshape(-1, 1, 2)[indices], x2u[:2].reshape(-1, 1,2 )[indices], cv.RANSAC,5.0)
-        matchesMask = mask.ravel().tolist()
 
-
-        draw_params = dict(matchColor = (0,255,0), # draw matches in green color
-                   singlePointColor = None,
-                   matchesMask = matchesMask, # draw only inliers
-                   flags = 2)
-
-
-        img3 = cv.drawMatches(im1,keypoints1,im2,keypoints2,good_matches[indices],None,**draw_params)
-        plt.imshow(img3, 'gray'),plt.show()
+        # img3 = cv.drawMatches(im1,keypoints1,im2,keypoints2,good_matches[indices],None,**draw_params)
+        # plt.imshow(img3, 'gray'),plt.show()

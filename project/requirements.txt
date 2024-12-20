@@ -1,3 +1,18 @@
 opencv-python
 numpy
 matplotlib
+
+# For RoMa
+torch
+einops
+torchvision
+opencv-python
+kornia
+albumentations
+loguru
+tqdm
+matplotlib
+h5py
+wandb
+timm
+poselib
