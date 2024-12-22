@@ -4,7 +4,7 @@ from .enforce_essential import enforce_essential
 from .compute_epipolar_errors import compute_epipolar_errors
 from tqdm import tqdm
 
-def estimate_E_robust(x1,x2,eps, iterations=1000):
+def estimate_E_robust(x1,x2,eps, iterations=100):
     """
     I am assuming normalized x1 and x2 (calibrated)
     """
