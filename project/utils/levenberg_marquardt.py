@@ -1,88 +1,135 @@
 import numpy as np
 from tqdm import tqdm
 
-def compute_J(P, X):
-    c = P[2,:]@X
-    J = np.array([
-        (P[0, :]@X)/(c**2)*P[2,:]-P[0, :]/c,
-        (P[1, :]@X)/(c**2)*P[2,:]-P[1, :]/c,
+def compute_JP(P, X):
+    """
+    Compute the Jacobian with respect to the camera parameters for all 3D points.
+
+    Args:
+        P (np.ndarray): Projection matrix, shape (3, 4).
+        X (np.ndarray): 3D points in homogeneous coordinates, shape (4, n).
+
+    Returns:
+        np.ndarray: Jacobian matrix, shape (2n, 12).
+    """
+    n = X.shape[1]  # Number of points
+
+    u = P[0, :] @ X  # u-coordinate numerator, shape (n,)
+    v = P[1, :] @ X  # v-coordinate numerator, shape (n,)
+    w = P[2, :] @ X  # Denominator, shape (n,)
+
+    # Compute Jacobian rows for all points
+    J1 = np.hstack([
+        -X.T / w[:, np.newaxis],                 # First row, first 4 elements
+        np.zeros((n, 4)),                       # First row, next 4 elements
+        (u / w**2)[:, np.newaxis] * X.T         # First row, last 4 elements
     ])
+
+    J2 = np.hstack([
+        np.zeros((n, 4)),                       # Second row, first 4 elements
+        -X.T / w[:, np.newaxis],                # Second row, next 4 elements
+        (v / w**2)[:, np.newaxis] * X.T         # Second row, last 4 elements
+    ])
+
+    # Stack the Jacobian rows for all points
+    J = np.vstack([J1, J2])
     return J
 
+
 def compute_R(P, X, x):
-    c = P[2,:]@X
-    R = np.array([
-       x[0]- P[0, :]@X/c,
-       x[1]- P[1, :]@X/c,
+    """
+    Compute the residuals for all 3D points.
+
+    Args:
+        P (np.ndarray): Projection matrix, shape (3, 4).
+        X (np.ndarray): 3D points in homogeneous coordinates, shape (4, n).
+        x (np.ndarray): Observed 2D points, shape (2, n).
+
+    Returns:
+        np.ndarray: Residuals, shape (2n,).
+    """
+    u = P[0, :] @ X  # u-coordinate numerator, shape (n,)
+    v = P[1, :] @ X  # v-coordinate numerator, shape (n,)
+    w = P[2, :] @ X  # Denominator, shape (n,)
+
+    # Compute residuals for all points
+    r = np.hstack([
+        x[0, :] - u / w,  # Residual for u-coordinates
+        x[1, :] - v / w   # Residual for v-coordinates
     ])
-    return R
+    return r
 
-def linearize_reproj_err(P_1,P_2,X_j,x_1j,x_2j):
-    r = np.concatenate([compute_R(P_1, X_j, x_1j), compute_R(P_2, X_j, x_2j)])
-    J = np.concatenate([compute_J(P_1, X_j), compute_J(P_2, X_j)])
-    return r, J
+def linearize_reproj_err_P(Ps, xs, Xs):
+    """
+    Linearize reprojection error for all cameras.
 
+    Args:
+        Ps (list of np.ndarray): List of projection matrices, each of shape (3, 4).
+        xs (list of np.ndarray): List of observed 2D points, each of shape (2, n_points).
+        Xs (list of np.ndarray): List of 3D points in homogeneous coordinates, each of shape (4, n_points).
 
-def compute_reprojection_error(P_1,P_2,X_j,x_1j,x_2j):
-    r_1 = [x_1j[0] - (P_1[0, :]@X_j)/(P_1[2, :]@X_j), x_1j[1] - (P_1[1, :]@X_j)/(P_1[2, :]@X_j)]
-    r_2 = [x_2j[0] - (P_2[0, :]@X_j)/(P_2[2, :]@X_j), x_2j[1] - (P_2[1, :]@X_j)/(P_2[2, :]@X_j)]
-    
-    r = np.array([r_1, r_2])
-    err = np.linalg.norm(r)
+    Returns:
+        tuple: 
+            - List of residuals, one per camera, each of shape (2 * n_points,).
+            - List of Jacobians, one per camera, each of shape (2 * n_points, 12).
+    """
+    residuals = [compute_R(P, X, x) for P, x, X in zip(Ps, xs, Xs)]
+    jacobians = [compute_JP(P, X) for P, X in zip(Ps, Xs)]
+    return residuals, jacobians
 
-    return err, r
+def compute_update_Ps(residuals, jacobians, mu):
+    """
+    Compute updates for all cameras.
 
-def compute_total_reprojection_error(P_1,P_2,X,x):
-    N = X.shape[-1]
-    err = []
-    for i in range(N):
-        Xj = X[:, i]
-        x1j = x[0, :, i]
-        x2j = x[1, :, i]
-        err += [compute_reprojection_error(P_1, P_2, Xj, x1j, x2j)[0]]
-    return err
+    Args:
+        residuals (list of np.ndarray): List of residuals, one per camera.
+        jacobians (list of np.ndarray): List of Jacobians, one per camera.
+        mu (float): Damping parameter for Levenberg-Marquardt.
 
-def compute_update(r, J, mu):
-    C = J.T @ J + mu * np.eye(J.shape[1])
-    c = J.T @ r
-    delta = -np.linalg.solve(C, c)
-    return delta
+    Returns:
+        list of np.ndarray: Updates for all projection matrices, each of shape (3, 4).
+    """
+    delta_Ps = []
+    for r, J in zip(residuals, jacobians):
+        # Compute the Hessian approximation for this camera
+        C = J.T @ J + mu * np.eye(J.shape[1])
+        
+        # Compute the gradient for this camera
+        c = J.T @ r
+        
+        # Solve for the update vector
+        delta = -np.linalg.solve(C, c)
+        
+        # Reshape delta into a (3, 4) matrix
+        delta_P = delta.reshape(3, 4)
+        delta_Ps.append(delta_P)
 
-def perform_bundle_adjustment(X, x, P, epochs=5):
-    X = X.copy()
-    N = X.shape[-1]
-    mu = 0.1  # Initial damping factor
+    return delta_Ps
 
-    for epoch in tqdm(range(epochs), desc='Performing bundle adjustment'):
-        total_error = 0
+def perform_bundle_adjustment(Xs, xs, Ps, epochs=5, mu=0.1):
+    """
+    Perform bundle adjustment for multiple cameras and 3D points.
 
-        for i in range(N):
-            x1j = x[0, :, i]
-            x2j = x[1, :, i]
+    Args:
+        Xs (list of np.ndarray): List of 3D points in homogeneous coordinates, each of shape (4, n_points).
+        xs (list of np.ndarray): List of observed 2D points, each of shape (2, n_points).
+        Ps (list of np.ndarray): List of camera projection matrices, each of shape (3, 4).
+        epochs (int): Number of optimization iterations.
+        mu (float): Damping parameter for Levenberg-Marquardt.
 
-            r, J = linearize_reproj_err(P[0], P[1], X[:, i], x1j, x2j)
-            current_error = np.linalg.norm(r)**2
+    Returns:
+        list of np.ndarray: Optimized projection matrices.
+    """
+    for epoch in tqdm(range(epochs), desc='Performing Bundle Adjustment...'):
+        # Linearize reprojection error
+        residuals, jacobians = linearize_reproj_err_P(Ps, xs, Xs)
+        
+        # Compute updates for all cameras
+        delta_Ps = compute_update_Ps(residuals, jacobians, mu)
+        
+        # Update each camera's projection matrix
+        for i in range(len(Ps)):
+            Ps[i] += delta_Ps[i]
+        print(f"Mean reprojection error in epoch {epoch + 1}/{epochs} is: {np.mean([np.linalg.norm(r)**2/len(r) for r in residuals])}")
 
-            # Compute update for X[:, i]
-            delta_Xj = compute_update(r, J, mu)
-
-            # Temporarily update the solution
-            X_temp = X[:, i] + delta_Xj
-
-            # Recompute error after applying the update
-            r_new, _ = linearize_reproj_err(P[0], P[1], X_temp, x1j, x2j)
-            new_error = np.linalg.norm(r_new)**2
-
-            if new_error < current_error:
-                # Accept the update and reduce the damping factor
-                X[:, i] = X_temp
-                mu = max(mu / 10, 1e-7)  # Ensure mu doesn't become too small
-            else:
-                # Reject the update and increase the damping factor
-                mu = min(mu * 10, 1e7)  # Ensure mu doesn't become too large
-
-            total_error += new_error
-
-        print(f"Epoch {epoch + 1}/{epochs}, Total Error: {total_error:.6f}, Damping Factor: {mu:.6e}")
-
-    return X
+    return Ps

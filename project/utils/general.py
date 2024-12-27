@@ -65,13 +65,17 @@ def triangulate_initial_points(x1n, x2n, eps):
         print(f"Camera {camera_counter} has {positive_depth_count/N*100:.2f}% points in front of both cameras")
         Xj = np.array(Xj)
 
-        # Compute distances from the origin
-        # distances = np.linalg.norm(Xj, axis=1)
-
-        # Find the 90th percentile distance
-        # threshold = np.percentile(distances, 90)
-
-        # Filter out points beyond the threshold
-        # Xj_filtered = Xj[distances <= threshold]
-
     return Xj
+
+def remove_3D_outliers(X, percentile=90):
+    # Compute distances from the origin
+    distances = np.linalg.norm(X, axis=1)
+
+    # Find the 90th percentile distance
+    threshold = np.percentile(distances, percentile)
+
+    indices= distances <= threshold
+
+    # Filter out points beyond the threshold
+    X = X[indices]
+    return X, indices
