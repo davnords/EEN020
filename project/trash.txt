@@ -1,0 +1,60 @@
+# ORB feature detector and matcher
+orb = cv.ORB_create(nfeatures=1000)  # Increase the number of keypoints
+
+# Function to get keypoints and descriptors using ORB
+def get_kps_and_des(img):
+    # Use ORB to detect keypoints and compute descriptors
+    kps, des = orb.detectAndCompute(img, None)  # detectAndCompute combines both steps
+    return kps, des
+
+# Read images in grayscale
+imA_path = image_paths[init_pair[0]-1]
+imB_path = image_paths[init_pair[1]-1]
+imA = cv.imread(imA_path, cv.IMREAD_GRAYSCALE)
+imB = cv.imread(imB_path, cv.IMREAD_GRAYSCALE)
+
+# Get keypoints and descriptors for both images
+kps1, des1 = get_kps_and_des(imA)
+kps2, des2 = get_kps_and_des(imB)
+
+# BFMatcher with knnMatch
+bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=False)  # Set crossCheck=False for knnMatch
+matches = bf.knnMatch(des1, des2, k=2)
+
+# Apply ratio test to filter out bad matches
+good_matches = [m for m, n in matches if m.distance < 0.75 * n.distance]
+
+x1u = general.make_homogenous(np.array([kps1[m.queryIdx].pt for m in good_matches]))
+x2u = general.make_homogenous(np.array([kps2[m.trainIdx].pt for m in good_matches]))
+
+x1n = pflat.pflat(K_inv @ x1u)
+x2n = pflat.pflat(K_inv @ x2u)
+
+X0 = general.triangulate_initial_points(x1n, x2n, epipolar_treshold)
+
+import matplotlib.pyplot as plt
+
+# Draw only the good matches
+img_matches = cv.drawMatches(imA, kps1, imB, kps2, good_matches, None, 
+                             matchColor=(0, 255, 0), singlePointColor=(255, 0, 0), flags=2)
+
+# Display the matches using matplotlib (for Jupyter notebook)
+plt.figure(figsize=(10, 5))
+plt.imshow(img_matches)
+plt.axis('off')  # Hide axes
+plt.show()
+
+import math
+from PIL import Image
+
+R = np.eye(3)
+t = np.zeros((3, 1))
+P1 = np.hstack((R, t))
+
+R_rad = np.array((45.0, 0.0, 45.0)) * math.pi / 180
+R = cv.Rodrigues(R_rad)[0]
+t = np.array(([1, 0.5, 0])).reshape(3,1)
+P2 = np.hstack((R, t))
+
+X = np.random.randn(3, 1000)
+viz.plot_scene(X, [P1, P2], [image_paths[0], image_paths[1]])

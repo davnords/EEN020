@@ -33,7 +33,7 @@ def sfm(dataset):
 
     # Load SIFT and naive matcher (correspondences come from RoMa matching)
     sift = cv.SIFT_create()
-    bf = cv.BFMatcher(normType=cv.NORM_L2, crossCheck=True)
+    bf = cv.BFMatcher(normType=cv.NORM_L2, crossCheck=False)
 
     # Ensure directories exist for this dataset
     os.makedirs(f"./storage/{dataset}", exist_ok=True)
@@ -57,26 +57,8 @@ def sfm(dataset):
     try:
         relative_rotations = np.load(f"./storage/{dataset}/relative_rotations.npy")
     except:
-        relative_rotations = []
-        for i in range(len(image_paths)-1):
-            imA_path = image_paths[i]
-            imB_path = image_paths[i+1]
-
-            x1u, x2u = general.find_matches(imA_path, imB_path, roma_model, device=device)
-
-            # Better if we can replace with RoMa features
-            _, desc1 = sift.compute(cv.imread(imA_path,cv.IMREAD_GRAYSCALE), [cv.KeyPoint(x=pt[0], y=pt[1], size=1) for pt in x1u.T])
-            _, desc2 = sift.compute(cv.imread(imB_path,cv.IMREAD_GRAYSCALE), [cv.KeyPoint(x=pt[0], y=pt[1], size=1) for pt in x2u.T])
-
-            np.save(f"./storage/{dataset}/desc{i}.npy", desc1)
-            np.save(f"./storage/{dataset}/desc{i+1}.npy", desc2)
-
-            x1n = pflat.pflat(K_inv @ x1u)
-            x2n = pflat.pflat(K_inv @ x2u)
-
-            R = general.find_relative_rotation_and_translation(x1n, x2n, epipolar_treshold)[:3, :3]
-            relative_rotations.append(R)
-            np.save(f"./storage/{dataset}/relative_rotations.npy", relative_rotations)
+        relative_rotations = general.find_relative_rotation(image_paths, K_inv, roma_model, epipolar_treshold, device=device)
+        np.save(f"./storage/{dataset}/relative_rotations.npy", relative_rotations)
     
     # ------------------------------------------------------------------------------------------------
     # (2) Upgrade to absolute rotations R_i
@@ -93,13 +75,16 @@ def sfm(dataset):
     x1u, x2u = general.find_matches(imA_path, imB_path, roma_model, device=device)
     _, descX = sift.compute(cv.imread(imA_path,cv.IMREAD_GRAYSCALE), [cv.KeyPoint(x=pt[0], y=pt[1], size=1) for pt in x1u.T])
 
+    gray_image_ref = cv.imread(imA_path, cv.IMREAD_GRAYSCALE)
+    keypoints_ref = [cv.KeyPoint(x=pt[0], y=pt[1], size=1) for pt in x1u.T]
+
     x1n = pflat.pflat(K_inv @ x1u)
     x2n = pflat.pflat(K_inv @ x2u)
 
     X0 = general.triangulate_initial_points(x1n, x2n, epipolar_treshold)
 
     # Rotate X0 to world coordinate frame
-    X0 = X0@absolute_rotations[init_pair[0]-1].T
+    X0 = (absolute_rotations[init_pair[0]-1]).T@X.T
 
     # ------------------------------------------------------------------------------------------------
     # (4) For each image i robustly calculate the camera center Ci / translation Ti...
@@ -109,15 +94,37 @@ def sfm(dataset):
     Xs = []
     xs = []
     for i in range(len(image_paths)):
-        desci = np.load(f"./storage/{dataset}/desc{i}.npy")
-        matches = bf.match(desci, descX)
-        matches_2d_3d = np.array([(m.queryIdx, m.trainIdx) for m in matches])
-        x = x1n[:, matches_2d_3d[:, 0]]
+        imB_path = image_paths[i]
+        gray_image_i = cv.imread(imB_path, cv.IMREAD_GRAYSCALE)
+
+        x1u, x2u = general.find_matches(imA_path, imB_path, roma_model, device=device)
+
+        keypoints_i = [cv.KeyPoint(x=pt[0], y=pt[1], size=1) for pt in x2u.T]  # Use x2u for the other image
+        _, desci = sift.compute(gray_image_i, keypoints_i)
+
+        matches = bf.knnMatch(desci, descX, k=2)
+        print('Number of matches: ', len(matches))
+        good_matches = [m for m, n in matches if m.distance < 0.75 * n.distance]
+        matches = sorted(matches, key=lambda x: x.distance)
+        print('Number of good matches: ', len(good_matches))
+        matches_2d_3d = np.array([(m.queryIdx, m.trainIdx) for m in good_matches])
+
+        good_matches_image = cv.drawMatches(
+            gray_image_i, keypoints_i,
+            gray_image_ref, keypoints_ref,
+            good_matches[:10], None, flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
+        )
+        cv.imwrite(f"./plots/good_matches_image_{i}.png", good_matches_image)
+
+        matched_keypoints = [keypoints_i[int(idx)] for idx in matches_2d_3d[:, 0]]
+        x = np.array([np.array([kp.pt[0], kp.pt[1]]) for kp in matched_keypoints])
+        x = general.make_homogenous(x)
+
         X = X0.T[:, matches_2d_3d[:, 1]]
         
         R = absolute_rotations[i]
         # Make this work, is it the absolute rotations that are bad or the algorithm??
-        T, _ = estimate_T_robust.estimate_T_robust(x, X, R, translation_threshold, iterations=10)
+        T, _ = estimate_T_robust.estimate_T_robust(x, X, R, translation_threshold, iterations=100)
         P = np.hstack((R, T))
         Ps.append(P)
         Xs.append(general.make_homogenous(X.T))
