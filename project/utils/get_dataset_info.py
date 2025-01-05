@@ -88,6 +88,14 @@ def get_dataset_info(dataset):
         focal_length_35mm = 38.0  # from the EXIF data
         init_pair = [4, 6]
         pixel_threshold = 1.0
+    elif dataset == 10:
+        # Alcatraz Water Tower (by Carl Olsson)
+        img_names = [f"data/10/San_Francisco_25{str(i) if i>9 else '0'+str(i)}.jpg" for i in range(1, 19)]
+        init_pair = [1, 15]
+        pixel_threshold = 1.0
+        K = np.load('./project_data/data/10/AlcatrazWaterTower.npz')['K_gt'][10]
+        return K, img_names, init_pair, pixel_threshold
+    
     else:
         raise ValueError("Unknown dataset")
 

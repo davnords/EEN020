@@ -70,15 +70,11 @@ def estimate_translation_DLT_SVD(x, X, R, printSV=False):
         M[2*i+1, :] = [0, 1, -x[1, i]]
         b[2*i+1] = x[1, i]*X_rotated[2] - X_rotated[1]
     
-    # Solve the system using SVD
+    # Solve the system usig least squares
     t = np.linalg.lstsq(M, b, rcond=None)[0]
     
     # Construct the full camera matrix
     P = np.column_stack([R, t.reshape(3, 1)])
     
-    # Check if points are in front of the camera
-    x_projected = P @ X
-    depths = x_projected[2, :]
-    if np.any(depths <= 0):
-        P = -P  # Negate the camera matrix to flip the camera direction
+
     return P

@@ -13,7 +13,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=int, required=True, help="Dataset number")
     args = parser.parse_args()
 
-    if args.dataset <1 or args.dataset > 9:
+    if args.dataset <1 or args.dataset > 10:
         raise ValueError("Unknown dataset")
     
     # Setting random seeds
