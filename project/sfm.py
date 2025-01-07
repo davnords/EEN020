@@ -1,5 +1,4 @@
 from utils.get_dataset_info import get_dataset_info
-import cv2 as cv
 import numpy as np
 from utils import general, levenberg_marquardt, viz
 from romatch import roma_outdoor
@@ -74,7 +73,7 @@ def sfm(dataset):
     # ------------------------------------------------------------------------------------------------
 
     X, descX = general.perform_initial_scene_reconstruction(reference_imA_path, reference_imB_path, K_inv, epipolar_treshold, init_pair, absolute_rotations)
-
+    viz.plot_scene_old(X.T, [np.hstack((R, np.zeros((3,1)))) for R in absolute_rotations], name=f"{dataset}_absolute_rotations.png")
     # ------------------------------------------------------------------------------------------------
     # (4) For each image i robustly calculate the camera center Ci / translation Ti...
     # ...Reduced Camera Resectioning problem (since Ri is known at this stage)
@@ -88,14 +87,14 @@ def sfm(dataset):
     # ------------------------------------------------------------------------------------------------
 
     Ps = levenberg_marquardt.perform_extrinsic_bundle_adjustment(Xs, xs, Ps)
-    viz.plot_scene_old(X.T, Ps, name=f"scene_reconstruction_{dataset}.png")
+    viz.plot_scene_old(X.T, Ps, name=f"{dataset}_scene_reconstruction_after_BA.png")
 
     # ------------------------------------------------------------------------------------------------
     # (6) Triangulate points for all pairs (i, i+1) and visualize 3D points + cameras
     # ------------------------------------------------------------------------------------------------
 
     X = general.triangulate_scene(image_paths, Ps, roma_model, K_inv, device='cuda:0')
-    viz.plot_scene_old(X, Ps, name=f"scene_reconstruction_{dataset}.png")
+    viz.plot_scene_old(X, Ps, name=f"{dataset}_scene_reconstruction_after_full_triangulation.png")
 
     # ------------------------------------------------------------------------------------------------
     # (-1) End...
