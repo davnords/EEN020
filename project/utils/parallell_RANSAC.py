@@ -4,7 +4,7 @@ from .triangulate_3D_point_DLT import triangulate_3D_point_DLT
 import numpy as np
 
 def parallell_RANSAC(x1, x2, eps, iterations=1000):
-    E, inliers = estimate_E_robust(x1, x2, eps, iterations=iterations)
+    E, _ = estimate_E_robust(x1, x2, eps, iterations=iterations)
 
     P1 = np.hstack((np.eye(3), np.zeros((3,1))))
     P2s = np.array(extract_P_from_E(E))

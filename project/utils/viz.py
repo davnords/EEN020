@@ -1,8 +1,5 @@
 from matplotlib import pyplot as plt
-import numpy as np
 import matplotlib.pyplot as plt
-import cv2 as cv
-from PIL import Image
 from matplotlib.cm import get_cmap
 from .plotcams import plotcams
 
@@ -22,7 +19,6 @@ def plot_colored_scene(Xs, Ps, title='Scene reconstruction SfM', name='scene_rec
     plotcams(Ps, ax=ax, scale=0.5)
 
     cmap = get_cmap('tab10')  # You can use other colormaps like 'viridis', 'plasma', etc.
-
 
     num_colors = len(Xs)
     for i, X in enumerate(Xs):

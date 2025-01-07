@@ -16,25 +16,6 @@ bf = cv2.BFMatcher(normType=cv2.NORM_L2, crossCheck=False)
 def make_homogenous(x):
     return np.vstack((x.T, np.ones(x.shape[0])))
 
-def find_matches(imA_path, imB_path, model, K_inv, device='cuda:0', num=10000):
-    imA = Image.open(imA_path) 
-    imB = Image.open(imB_path) 
-
-    imA_dims = (imA.height, imA.width)
-    imB_dims = (imB.height, imB.width)
-
-    H_A, W_A = imA_dims
-    H_B, W_B = imB_dims
-    
-    warp, certainty = model.match(imA_path, imB_path, device=device)
-    matches, certainty = model.sample(warp, certainty, num=num)
-    kptsA, kptsB = model.to_pixel_coordinates(matches, H_A, W_A, H_B, W_B)
-    kptsA, kptsB = kptsA.cpu().numpy(), kptsB.cpu().numpy()
-
-    x1u, x2u = make_homogenous(kptsA), make_homogenous(kptsB)
-    x1n, x2n = pflat(K_inv @ x1u), pflat(K_inv @ x2u)
-    return x1n, x2n
-
 def find_SIFT_matches(imA_path, imB_path, K_inv):
 
     kp1, des1 = sift.detectAndCompute(cv2.imread(imA_path,cv2.IMREAD_GRAYSCALE),None)
@@ -55,52 +36,6 @@ def find_SIFT_matches(imA_path, imB_path, K_inv):
     good_indices = [m[0].queryIdx for m in good]
     descX = des1[good_indices] 
     return x1n, x2n, descX
-
-def match_keypoints(imA_path, imB_path, model, device='cuda:0'):
-    imA = Image.open(imA_path) 
-    imB = Image.open(imB_path) 
-
-    imA_dims = (imA.height, imA.width)
-    imB_dims = (imB.height, imB.width)
-
-    H_A, W_A = imA_dims
-    H_B, W_B = imB_dims
-
-    kp1, _ = sift.detectAndCompute(cv2.imread(imA_path,cv2.IMREAD_GRAYSCALE),None)
-    kp2, _ = sift.detectAndCompute(cv2.imread(imB_path,cv2.IMREAD_GRAYSCALE),None)
-
-    kp1u = torch.tensor([[kp.pt[0], kp.pt[1]] for kp in kp1]).to(device)
-    kp2u = torch.tensor([[kp.pt[0], kp.pt[1]] for kp in kp2]).to(device)
-
-    warp, certainty = model.match(imA_path, imB_path, device=device)
-
-    kp1n, kp2n = model.to_normalized_coordinates((kp1u, kp2u), H_A, W_A, H_B, W_B)
-    x1, x2 = model.match_keypoints(kp1n, kp2n, warp, certainty, return_tuple=True, return_inds=True)
-
-    x1u, x2u = kp1u[x1].cpu().numpy(), kp2u[x2].cpu().numpy()
-
-    x1u, x2u = x1u.T, x2u.T 
-
-def plot_matches(imA_path, imB_path, x1u, x2u):
-    import matplotlib.pyplot as plt
-    plt.figure(figsize=(10, 5))
-
-    # First subplot
-    plt.subplot(1, 2, 1)  # 1 row, 2 columns, first subplot
-    plt.imshow(Image.open(imA_path))
-    ind = np.random.randint(0, len(x1u))
-    plt.plot(x1u[ind, 0], x1u[ind, 1], 'ro', markersize=1)
-    plt.title("First Plot")
-
-    # Second subplot
-    plt.subplot(1, 2, 2)  # 1 row, 2 columns, second subplot
-    plt.imshow(Image.open(imB_path))
-    plt.plot(x2u[ind, 0], x2u[ind, 1], 'ro', markersize=1)
-    plt.title("Second Plot")
-
-    plt.tight_layout()  # Adjust spacing between subplots
-    plt.show()
-
 
 def find_relative_rotations(image_paths, K_inv, model, eps, device='cuda:0', matcher='roma'):
     out = []
@@ -251,3 +186,69 @@ def match_3d_to_image(X, descX, image_path):
     matched_3d_points = X[:, X_indices]
 
     return matched_3d_points, image_points
+
+# ----------------- RoMa -----------------
+
+def find_matches(imA_path, imB_path, model, K_inv, device='cuda:0', num=10000):
+    imA = Image.open(imA_path) 
+    imB = Image.open(imB_path) 
+
+    imA_dims = (imA.height, imA.width)
+    imB_dims = (imB.height, imB.width)
+
+    H_A, W_A = imA_dims
+    H_B, W_B = imB_dims
+    
+    warp, certainty = model.match(imA_path, imB_path, device=device)
+    matches, certainty = model.sample(warp, certainty, num=num)
+    kptsA, kptsB = model.to_pixel_coordinates(matches, H_A, W_A, H_B, W_B)
+    kptsA, kptsB = kptsA.cpu().numpy(), kptsB.cpu().numpy()
+
+    x1u, x2u = make_homogenous(kptsA), make_homogenous(kptsB)
+    x1n, x2n = pflat(K_inv @ x1u), pflat(K_inv @ x2u)
+    return x1n, x2n
+
+def match_keypoints(imA_path, imB_path, model, device='cuda:0'):
+    imA = Image.open(imA_path) 
+    imB = Image.open(imB_path) 
+
+    imA_dims = (imA.height, imA.width)
+    imB_dims = (imB.height, imB.width)
+
+    H_A, W_A = imA_dims
+    H_B, W_B = imB_dims
+
+    kp1, _ = sift.detectAndCompute(cv2.imread(imA_path,cv2.IMREAD_GRAYSCALE),None)
+    kp2, _ = sift.detectAndCompute(cv2.imread(imB_path,cv2.IMREAD_GRAYSCALE),None)
+
+    kp1u = torch.tensor([[kp.pt[0], kp.pt[1]] for kp in kp1]).to(device)
+    kp2u = torch.tensor([[kp.pt[0], kp.pt[1]] for kp in kp2]).to(device)
+
+    warp, certainty = model.match(imA_path, imB_path, device=device)
+
+    kp1n, kp2n = model.to_normalized_coordinates((kp1u, kp2u), H_A, W_A, H_B, W_B)
+    x1, x2 = model.match_keypoints(kp1n, kp2n, warp, certainty, return_tuple=True, return_inds=True)
+
+    x1u, x2u = kp1u[x1].cpu().numpy(), kp2u[x2].cpu().numpy()
+
+    x1u, x2u = x1u.T, x2u.T 
+
+def plot_matches(imA_path, imB_path, x1u, x2u):
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(10, 5))
+
+    # First subplot
+    plt.subplot(1, 2, 1)  # 1 row, 2 columns, first subplot
+    plt.imshow(Image.open(imA_path))
+    ind = np.random.randint(0, len(x1u))
+    plt.plot(x1u[ind, 0], x1u[ind, 1], 'ro', markersize=1)
+    plt.title("First Plot")
+
+    # Second subplot
+    plt.subplot(1, 2, 2)  # 1 row, 2 columns, second subplot
+    plt.imshow(Image.open(imB_path))
+    plt.plot(x2u[ind, 0], x2u[ind, 1], 'ro', markersize=1)
+    plt.title("Second Plot")
+
+    plt.tight_layout()  # Adjust spacing between subplots
+    plt.show()
