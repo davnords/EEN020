@@ -7,6 +7,7 @@ from .estimate_E_robust import estimate_E_robust
 from .pflat import pflat
 from PIL import Image
 import cv2
+import torch
 
 # Load SIFT and naive matcher (correspondences come from RoMa matching)
 sift = cv2.SIFT_create()
@@ -15,7 +16,7 @@ bf = cv2.BFMatcher(normType=cv2.NORM_L2, crossCheck=False)
 def make_homogenous(x):
     return np.vstack((x.T, np.ones(x.shape[0])))
 
-def find_matches(imA_path, imB_path, model, K_inv, device='cuda:0'):
+def find_matches(imA_path, imB_path, model, K_inv, device='cuda:0', num=10000):
     imA = Image.open(imA_path) 
     imB = Image.open(imB_path) 
 
@@ -26,7 +27,7 @@ def find_matches(imA_path, imB_path, model, K_inv, device='cuda:0'):
     H_B, W_B = imB_dims
     
     warp, certainty = model.match(imA_path, imB_path, device=device)
-    matches, certainty = model.sample(warp, certainty)
+    matches, certainty = model.sample(warp, certainty, num=num)
     kptsA, kptsB = model.to_pixel_coordinates(matches, H_A, W_A, H_B, W_B)
     kptsA, kptsB = kptsA.cpu().numpy(), kptsB.cpu().numpy()
 
@@ -34,13 +35,82 @@ def find_matches(imA_path, imB_path, model, K_inv, device='cuda:0'):
     x1n, x2n = pflat(K_inv @ x1u), pflat(K_inv @ x2u)
     return x1n, x2n
 
+def find_SIFT_matches(imA_path, imB_path, K_inv):
 
-def find_relative_rotations(image_paths, K_inv, model, eps, device='cuda:0'):
+    kp1, des1 = sift.detectAndCompute(cv2.imread(imA_path,cv2.IMREAD_GRAYSCALE),None)
+    kp2, des2 = sift.detectAndCompute(cv2.imread(imB_path,cv2.IMREAD_GRAYSCALE),None)
+
+    bf = cv2.BFMatcher()
+    matches = bf.knnMatch(des1,des2,k=2)
+    good = []
+    for m,n in matches:
+        if m.distance < 0.75*n.distance:
+            good.append([m])
+
+    x1u = make_homogenous(np.float32([kp1[m[0].queryIdx].pt for m in good]))  # Points from first image
+    x2u = make_homogenous(np.float32([kp2[m[0].trainIdx].pt for m in good]))  # Points from second image
+
+    x1n, x2n = pflat(K_inv@x1u), pflat(K_inv@x2u)
+
+    good_indices = [m[0].queryIdx for m in good]
+    descX = des1[good_indices] 
+    return x1n, x2n, descX
+
+def match_keypoints(imA_path, imB_path, model, device='cuda:0'):
+    imA = Image.open(imA_path) 
+    imB = Image.open(imB_path) 
+
+    imA_dims = (imA.height, imA.width)
+    imB_dims = (imB.height, imB.width)
+
+    H_A, W_A = imA_dims
+    H_B, W_B = imB_dims
+
+    kp1, _ = sift.detectAndCompute(cv2.imread(imA_path,cv2.IMREAD_GRAYSCALE),None)
+    kp2, _ = sift.detectAndCompute(cv2.imread(imB_path,cv2.IMREAD_GRAYSCALE),None)
+
+    kp1u = torch.tensor([[kp.pt[0], kp.pt[1]] for kp in kp1]).to(device)
+    kp2u = torch.tensor([[kp.pt[0], kp.pt[1]] for kp in kp2]).to(device)
+
+    warp, certainty = model.match(imA_path, imB_path, device=device)
+
+    kp1n, kp2n = model.to_normalized_coordinates((kp1u, kp2u), H_A, W_A, H_B, W_B)
+    x1, x2 = model.match_keypoints(kp1n, kp2n, warp, certainty, return_tuple=True, return_inds=True)
+
+    x1u, x2u = kp1u[x1].cpu().numpy(), kp2u[x2].cpu().numpy()
+
+    x1u, x2u = x1u.T, x2u.T 
+
+def plot_matches(imA_path, imB_path, x1u, x2u):
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(10, 5))
+
+    # First subplot
+    plt.subplot(1, 2, 1)  # 1 row, 2 columns, first subplot
+    plt.imshow(Image.open(imA_path))
+    ind = np.random.randint(0, len(x1u))
+    plt.plot(x1u[ind, 0], x1u[ind, 1], 'ro', markersize=1)
+    plt.title("First Plot")
+
+    # Second subplot
+    plt.subplot(1, 2, 2)  # 1 row, 2 columns, second subplot
+    plt.imshow(Image.open(imB_path))
+    plt.plot(x2u[ind, 0], x2u[ind, 1], 'ro', markersize=1)
+    plt.title("Second Plot")
+
+    plt.tight_layout()  # Adjust spacing between subplots
+    plt.show()
+
+
+def find_relative_rotations(image_paths, K_inv, model, eps, device='cuda:0', matcher='roma'):
     out = []
     for i in range(len(image_paths)-1):
         imA_path = image_paths[i]
         imB_path = image_paths[i+1]
-        x1n, x2n = find_matches(imA_path, imB_path, model, K_inv, device=device)
+        if matcher == 'roma':
+            x1n, x2n = find_matches(imA_path, imB_path, model, K_inv, device=device)
+        else: 
+            x1n, x2n, _ = find_SIFT_matches(imA_path, imB_path, K_inv)
         R = parallell_RANSAC(x1n, x2n, eps, iterations=100)[:3, :3]
         out.append(R)
     return out
@@ -58,15 +128,14 @@ def upgrade_to_absolute_rotations(relative_rotations):
     absolute_rotations = [np.eye(3)]  # First camera is the global reference frame
     for R_rel in relative_rotations:
         # Compute the absolute rotation by chaining the previous absolute rotation with the relative rotation
-        absolute_rotations.append(absolute_rotations[-1] @ R_rel)
+        absolute_rotations.append(R_rel@absolute_rotations[-1])
     
     return absolute_rotations
 
-def triangulate_initial_points(x1n, x2n, eps, R_rel):
+def triangulate_initial_points(x1n, x2n, eps):
     """
     Triangulate initial 3D points using the DLT method.
     """
-    # R_rel could be useful later as then we can triangulate the points in the right reference frame with right orientation
 
     E, _ = estimate_E_robust(x1n, x2n, eps, iterations=100)
 
@@ -74,7 +143,6 @@ def triangulate_initial_points(x1n, x2n, eps, R_rel):
     P2s = extract_P_from_E(E)
 
     xn = np.array([x1n, x2n])
-
     N = x1n.shape[-1]
     
     Xjs = []
@@ -98,33 +166,15 @@ def triangulate_initial_points(x1n, x2n, eps, R_rel):
     highest_depth_count = np.argmax(depth_counts)
     return Xjs[highest_depth_count]
 
+
 def perform_initial_scene_reconstruction(reference_imA_path, reference_imB_path, K_inv, epipolar_treshold, init_pair, absolute_rotations):
     """
     Perform initial scene reconstruction using the reference images.
     Matching is done using SIFT and the triangulation is done using the DLT method.
     """
-    kp1, des1 = sift.detectAndCompute(cv2.imread(reference_imA_path,cv2.IMREAD_GRAYSCALE),None)
-    kp2, des2 = sift.detectAndCompute(cv2.imread(reference_imB_path,cv2.IMREAD_GRAYSCALE),None)
+    x1n, x2n, descX = find_SIFT_matches(reference_imA_path, reference_imB_path, K_inv)
 
-    matches = bf.knnMatch(des1,des2,k=2)
-    # Apply ratio test
-    good = []
-    for m,n in matches:
-        if m.distance < 0.75*n.distance:
-            good.append(m)
-
-    x1u = make_homogenous(np.float32([kp1[m.queryIdx].pt for m in good]))  # Points from first image
-    x2u = make_homogenous(np.float32([kp2[m.trainIdx].pt for m in good]))  # Points from second image
-    x1n, x2n = pflat(K_inv@x1u), pflat(K_inv@x2u)
-
-    # Get the descriptors corresponding ONLY to the matched points
-    good_indices = [m.queryIdx for m in good]
-    descX = des1[good_indices]  # These descriptors now correspond to the points we triangulated
-
-    # Find the relative rotation between the two images (using the already computed rotations)
-    R_rel = absolute_rotations[init_pair[1]-1] @ absolute_rotations[init_pair[0]-1].T 
-
-    X0 = triangulate_initial_points(x1n, x2n, epipolar_treshold, R_rel)
+    X0 = triangulate_initial_points(x1n, x2n, epipolar_treshold)
     X0 = X0.T
     R_ref_to_world = absolute_rotations[init_pair[0]-1][:3, :3]
     X0 = R_ref_to_world@X0
@@ -162,6 +212,20 @@ def reduced_camera_resectioning(X, descX, absolute_rotations, image_paths, K_inv
         Xs.append(objectPoints)
     return Ps, xs, Xs
 
+def triangulate_correspondences(x1n, x2n, P1, P2):
+    """
+    Triangulate 3D points from 2D correspondences and camera matrices.
+    """
+    X = []
+    for i in range(x1n.shape[-1]):
+        x1 = x1n[:, i]
+        x2 = x2n[:, i]
+        Xi, _ = triangulate_3D_point_DLT(x1, x2, P1, P2)
+        X.append(Xi)
+    X = np.array(X)
+    X, _ = remove_3D_outliers(X)
+    return X
+
 def triangulate_scene(image_paths, Ps, roma_model, K_inv, device='cuda:0'):
     X = []
     for i in tqdm(range(len(image_paths)-1), desc='Performing triangulation...'):
@@ -171,13 +235,8 @@ def triangulate_scene(image_paths, Ps, roma_model, K_inv, device='cuda:0'):
         P1 = Ps[i]
         P2 = Ps[i+1]
 
-        x1n, x2n = find_matches(imA_path, imB_path, roma_model, K_inv, device=device)
-        for j in range(x1n.shape[-1]):
-            Xi, _ = triangulate_3D_point_DLT(x1n[:2, j], x2n[:2, j], P1, P2)
-            X.append(Xi)
-    
-    X = np.array(X)
-    X, _ = remove_3D_outliers(X)
+        x1n, x2n = find_matches(imA_path, imB_path, roma_model, K_inv, device=device, num=1000)
+        X.append(triangulate_correspondences(x1n, x2n, P1, P2))
     return X
 
 def match_3d_to_image(X, descX, image_path):
@@ -187,7 +246,6 @@ def match_3d_to_image(X, descX, image_path):
     for m, n in matches:
         if m.distance < 0.7 * n.distance:
             good_matches.append(m)
-
     X_indices = [m.queryIdx for m in good_matches]
     image_points = np.float32([kp_new[m.trainIdx].pt for m in good_matches])
     matched_3d_points = X[:, X_indices]

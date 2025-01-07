@@ -6,24 +6,6 @@ import torch
 import os
 
 # ------------------------------------------------------------------------------------------------
-# Questions
-# ------------------------------------------------------------------------------------------------
-# - I have this issue with triangulating initial 3D points that sometimes are orthogonal to the relative rotations...
-#   ...I believe this is related to that I triangulate without using the relative rotations, so the points can end up with the wrong orientation
-# - How to triangulate when you have the camera matrices? If i just append the coordinates I get too many points and some with wierd depths
-# - Can I change so RoMa extracts the features instead of SiFT? Feels much more compelling
-
-# Left to do:
-# - Test on more datasets?
-# - Implement 5 point algorithm
-# - Implement some of the algorithms in CUDA (RANSAC or something)
-
-# Optional:
-# - Implementation of 5-point solver in COLMAP: https://github.com/colmap/colmap/blob/main/src/colmap/estimators/essential_matrix.h
-#   (-) Can we implement this in CUDA?
-
-
-# ------------------------------------------------------------------------------------------------
 # Project
 # ------------------------------------------------------------------------------------------------
 
@@ -60,7 +42,7 @@ def sfm(dataset):
     try:
         relative_rotations = np.load(f"./storage/{dataset}/relative_rotations.npy")
     except:
-        relative_rotations = general.find_relative_rotations(image_paths, K_inv, roma_model, epipolar_treshold, device=device)
+        relative_rotations = general.find_relative_rotations(image_paths, K_inv, roma_model, epipolar_treshold, device=device, matcher='sift')
         np.save(f"./storage/{dataset}/relative_rotations.npy", relative_rotations)
     
     # ------------------------------------------------------------------------------------------------
@@ -73,7 +55,6 @@ def sfm(dataset):
     # ------------------------------------------------------------------------------------------------
 
     X, descX = general.perform_initial_scene_reconstruction(reference_imA_path, reference_imB_path, K_inv, epipolar_treshold, init_pair, absolute_rotations)
-    viz.plot_scene_old(X.T, [np.hstack((R, np.zeros((3,1)))) for R in absolute_rotations], name=f"{dataset}_absolute_rotations.png")
     # ------------------------------------------------------------------------------------------------
     # (4) For each image i robustly calculate the camera center Ci / translation Ti...
     # ...Reduced Camera Resectioning problem (since Ri is known at this stage)
@@ -87,14 +68,21 @@ def sfm(dataset):
     # ------------------------------------------------------------------------------------------------
 
     Ps = levenberg_marquardt.perform_extrinsic_bundle_adjustment(Xs, xs, Ps)
-    viz.plot_scene_old(X.T, Ps, name=f"{dataset}_scene_reconstruction_after_BA.png")
 
     # ------------------------------------------------------------------------------------------------
     # (6) Triangulate points for all pairs (i, i+1) and visualize 3D points + cameras
     # ------------------------------------------------------------------------------------------------
-
+    
     X = general.triangulate_scene(image_paths, Ps, roma_model, K_inv, device='cuda:0')
-    viz.plot_scene_old(X, Ps, name=f"{dataset}_scene_reconstruction_after_full_triangulation.png")
+    
+    viz.plot_scene(np.vstack(X), Ps, name=f"./{dataset}/full_scene_reconstruction.png", title="Full Scene reconstruction SfM")
+    viz.plot_colored_scene(X, Ps, name=f"./{dataset}/colored_scene_reconstruction.png", title="Colored Scene reconstruction SfM")
+
+    x1n, x2n = general.find_matches(reference_imA_path, reference_imB_path, roma_model, K_inv, device='cuda:0', num=10000)
+    
+    viz.plot_scene(general.triangulate_correspondences(x1n, x2n, Ps[init_pair[0]-1], Ps[init_pair[1]-1]),
+                        Ps, name=f"./{dataset}/single_view_scene_reconstruction.png",
+                        title="Scene reconstruction from reference view")
 
     # ------------------------------------------------------------------------------------------------
     # (-1) End...
