@@ -38,7 +38,7 @@ def perform_translation_bundle_adjustment(Xs, xs, Ps, epochs=5, mu=0.1):
 
     return Ps
 
-def perform_extrinsic_bundle_adjustment(Xs, xs, Ps, epochs=20, mu=0.1):
+def perform_extrinsic_bundle_adjustment(Xs, xs, Ps, epochs=50, mu=0.1):
     """
     Perform bundle adjustment for multiple cameras and 3D points.
 

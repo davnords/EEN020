@@ -9,15 +9,17 @@ import os
 # Project
 # ------------------------------------------------------------------------------------------------
 
-def sfm(dataset):
+def sfm(args):
     # ------------------------------------------------------------------------------------------------
     # (0) Load the data and the models
     # ------------------------------------------------------------------------------------------------
+    dataset = args.dataset
     K, img_names, init_pair, pixel_threshold = get_dataset_info(dataset)
     K_inv = np.linalg.inv(K)
 
     # Ensure directories exist for this dataset
     os.makedirs(f"./storage/{dataset}", exist_ok=True)
+    os.makedirs(f"./plots/{dataset}", exist_ok=True)
 
     # Load images
     image_paths = ['./project_data/'+img_name for img_name in img_names]
@@ -54,7 +56,7 @@ def sfm(dataset):
     # (3) Reconstruct initial 3D points from an initial image pair i_1 and i_2
     # ------------------------------------------------------------------------------------------------
 
-    X, descX = general.perform_initial_scene_reconstruction(reference_imA_path, reference_imB_path, K_inv, epipolar_treshold, init_pair, absolute_rotations)
+    X, descX = general.perform_initial_scene_reconstruction(reference_imA_path, reference_imB_path, K_inv, epipolar_treshold, init_pair, absolute_rotations, dataset)
     # ------------------------------------------------------------------------------------------------
     # (4) For each image i robustly calculate the camera center Ci / translation Ti...
     # ...Reduced Camera Resectioning problem (since Ri is known at this stage)
@@ -72,11 +74,10 @@ def sfm(dataset):
     # ------------------------------------------------------------------------------------------------
     # (6) Triangulate points for all pairs (i, i+1) and visualize 3D points + cameras
     # ------------------------------------------------------------------------------------------------
-    
-    X = general.triangulate_scene(image_paths, Ps, roma_model, K_inv, device='cuda:0')
-    
-    viz.plot_scene(np.vstack(X), Ps, name=f"./{dataset}/full_scene_reconstruction.png", title="Full Scene reconstruction SfM")
-    viz.plot_colored_scene(X, Ps, name=f"./{dataset}/colored_scene_reconstruction.png", title="Colored Scene reconstruction SfM")
+    if args.plots == 'full':
+        X = general.triangulate_scene(image_paths, Ps, roma_model, K_inv, device='cuda:0')
+        viz.plot_scene(general.remove_3D_outliers(np.vstack(X))[0], Ps, name=f"./{dataset}/full_scene_reconstruction.png", title="Full Scene reconstruction SfM")
+        viz.plot_colored_scene(X, Ps, name=f"./{dataset}/colored_scene_reconstruction.png", title="Colored Scene reconstruction SfM")
 
     x1n, x2n = general.find_matches(reference_imA_path, reference_imB_path, roma_model, K_inv, device='cuda:0', num=10000)
     

@@ -1,5 +1,7 @@
 # Project SfM David Nordström
 
+Final project of Computer Vision, EEN020, at Chalmers. Project implemented in Python.
+
 ## Installation
 
 ```bash

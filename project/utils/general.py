@@ -87,12 +87,15 @@ def triangulate_initial_points(x1n, x2n, eps):
         positive_depth_count = 0
         for i in range(N):
             xi = xn[:, :, i]
-            Xi, _ = triangulate_3D_point_DLT(xi[0, :2], xi[1, :2], P1, P2)
-            Xj.append(Xi)
+            Xi, valid = triangulate_3D_point_DLT(xi[0, :2], xi[1, :2], P1, P2)
 
-            X_h = np.hstack((Xi, [1]))  # Homogeneous coordinates
-            if P1[2, :] @ X_h > 0 and P2[2, :] @ X_h > 0:
+            Xj.append(Xi)
+            if valid:
                 positive_depth_count += 1
+
+            # X_h = np.hstack((Xi, [1]))  # Homogeneous coordinates
+            # if P1[2, :] @ X_h > 0 and P2[2, :] @ X_h > 0:
+            #     positive_depth_count += 1
         Xj = np.array(Xj)
         Xjs.append(Xj)
         depth_counts.append(positive_depth_count)
@@ -102,21 +105,28 @@ def triangulate_initial_points(x1n, x2n, eps):
     return Xjs[highest_depth_count]
 
 
-def perform_initial_scene_reconstruction(reference_imA_path, reference_imB_path, K_inv, epipolar_treshold, init_pair, absolute_rotations):
+def perform_initial_scene_reconstruction(reference_imA_path, reference_imB_path, K_inv, epipolar_treshold, init_pair, absolute_rotations, dataset):
     """
     Perform initial scene reconstruction using the reference images.
     Matching is done using SIFT and the triangulation is done using the DLT method.
     """
-    x1n, x2n, descX = find_SIFT_matches(reference_imA_path, reference_imB_path, K_inv)
 
-    X0 = triangulate_initial_points(x1n, x2n, epipolar_treshold)
-    X0 = X0.T
-    R_ref_to_world = absolute_rotations[init_pair[0]-1][:3, :3]
-    X0 = R_ref_to_world@X0
+    try:
+        mat = np.load(f"./storage/{dataset}/initial_scene_reconstruction.npz")
+        X, descX = mat['X'], mat['descX']
+    except:
+        x1n, x2n, descX = find_SIFT_matches(reference_imA_path, reference_imB_path, K_inv)
 
-    X, indices = remove_3D_outliers(X0.T)
-    X = X.T
-    descX = descX[indices]
+        X0 = triangulate_initial_points(x1n, x2n, epipolar_treshold)
+        X0 = X0.T
+        R_ref_to_world = absolute_rotations[init_pair[0]-1][:3, :3]
+        X0 = R_ref_to_world@X0
+
+        X, indices = remove_3D_outliers(X0.T)
+        X = X.T
+        descX = descX[indices]
+
+        np.savez(f"./storage/{dataset}/initial_scene_reconstruction.npz", X=X, descX=descX)
 
     return X, descX
 
@@ -155,9 +165,12 @@ def triangulate_correspondences(x1n, x2n, P1, P2):
     for i in range(x1n.shape[-1]):
         x1 = x1n[:, i]
         x2 = x2n[:, i]
-        Xi, _ = triangulate_3D_point_DLT(x1, x2, P1, P2)
-        X.append(Xi)
+        Xi, valid = triangulate_3D_point_DLT(x1, x2, P1, P2)
+        if valid:
+            X.append(Xi)
     X = np.array(X)
+    if X.shape[0] == 0:
+        return np.array([])
     X, _ = remove_3D_outliers(X)
     return X
 
@@ -171,7 +184,9 @@ def triangulate_scene(image_paths, Ps, roma_model, K_inv, device='cuda:0'):
         P2 = Ps[i+1]
 
         x1n, x2n = find_matches(imA_path, imB_path, roma_model, K_inv, device=device, num=1000)
-        X.append(triangulate_correspondences(x1n, x2n, P1, P2))
+        Xi = triangulate_correspondences(x1n, x2n, P1, P2)
+        if Xi.shape[0] > 0:
+            X.append(Xi)
     return X
 
 def match_3d_to_image(X, descX, image_path):

@@ -93,8 +93,16 @@ def get_dataset_info(dataset):
         img_names = [f"data/10/San_Francisco_25{str(i) if i>9 else '0'+str(i)}.jpg" for i in range(1, 19)]
         init_pair = [1, 15]
         pixel_threshold = 1.0
-        K = np.load('./project_data/data/10/AlcatrazWaterTower.npz')['K_gt'][10]
-        return K, img_names, init_pair, pixel_threshold
+        im_width, im_height = 1936, 1296
+        focal_length_35mm = 43.0  # from the EXIF data
+    
+    elif dataset == 11:
+        # Graham Hall (by Johannes Schönberger)
+        img_names = [f"data/11/{str(i)}.JPG" for i in range(1, 13)]
+        init_pair = [1, 10]
+        pixel_threshold = 1.0
+        im_width, im_height = 3072, 2304
+        focal_length_35mm = 28.0  # from the EXIF data
     
     else:
         raise ValueError("Unknown dataset")
